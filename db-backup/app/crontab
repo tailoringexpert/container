@@ -1,0 +1,5 @@
+# sontags 00:00
+0 0 * * *   /app/mariadb-backup.sh
+
+#alle 2 mibuten
+#*/2 * * * * /app/mariadb-backup.sh

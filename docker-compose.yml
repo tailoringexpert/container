@@ -1,0 +1,246 @@
+networks:
+  proxy:
+    external: true
+  admin:
+    external: true
+  db:
+    internal: true
+  idm:
+    internal: true
+  app:
+    internal: true
+
+
+services:
+  directories:
+    image: ${ALPINE_IMAGE}
+    container_name: directories
+    user: ${PUID}:${PGID}
+    volumes:
+      - ${DATA_HOME}:/platform/data
+      - ${LOG_HOME}:/platform/log
+    command:
+      - /bin/sh
+      - -c
+      - |
+        mkdir -p /platform/data/app/matrix /platform/data/app/attachement /platform/data/db
+        mkdir -p /platform/log/app /platform/log/httpd /platform/log/traefik
+
+  sql:
+    image: ${ALPINE_IMAGE}
+    container_name: sql
+    tty: true
+    user: ${PUID}:${PGID}
+    secrets:
+      - db_secrets
+    environment:
+      SECRETS_FILE: /run/secrets/db_secrets
+    env_file:
+      - .env
+    volumes:
+      - ./db:/app
+    command: /app/bootstrap.sh
+
+  liquibase:
+    image: ${LIQUIBASE_IMAGE}
+    container_name: masterdata
+    secrets:
+      - db_secrets
+    environment:
+      SECRETS_FILE: /run/secrets/db_secrets
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./liquibase/lib/mariadb-java-client.jar:/liquibase/lib/mariadb.jar
+      - ./liquibase/changelog:/liquibase/changelog
+      - ./liquibase/install_changelogs.sh:/liquibase/docker-entrypoint.sh:ro
+    networks:
+      - db
+
+  keycloak:
+    image: ${KEYCLOAK_IMAGE}
+    container_name: keycloak
+    hostname: tailoringexpert-idm
+    secrets:
+      - keycloak_secrets
+    environment:
+      SECRETS_FILE: /run/secrets/keycloak_secrets
+      KC_DB: ${KEYCLOAK_DB}
+      KC_HTTP_ENABLED: ${KEYCLOAK_HTTP_ENABLED}
+      KC_PROXY_HEADERS: xforwarded
+      KC_HTTP_RELATIVE_PATH: /auth
+      KC_CACHE: local
+      KC_LOG_LEVEL: ${KEYCLOAK_LOG_LEVEL}
+      KC_HEALTH_ENABLED: "true"
+      KC_MANAGEMENT_PORT: 9000
+
+      KEYCLOAK_PRODUCTION: ${KEYCLOAK_PRODUCTION}
+      KC_DB_URL_HOST: tailoringexpert-db
+      KC_DB_URL_PORT: ${KEYCLOAK_DB_PORT}
+
+      JAVA_OPTS_APPEND: "-Xms512m -Xmx1024m"
+    depends_on:
+      db:
+        condition:
+          service_healthy
+    entrypoint: ["/kc_with_secrets.sh", "start-dev", "--import-realm"]
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "exec 3<>/dev/tcp/127.0.0.1/9000; echo -e 'GET /auth/health/ready HTTP/1.1\r\nHost: localhost:9000\r\nConnection: close\r\n\r\n' >&3;cat <&3 | grep -q '\"status\": \"UP\"' && exit 0 || exit 1",
+        ]
+      interval: 15s
+      timeout: 2s
+      retries: 15
+    deploy:
+      resources:
+        limits:
+          memory: 2G            
+    volumes:
+      - ./keycloak/kc_with_secrets.sh:/kc_with_secrets.sh:ro
+      - ./keycloak/app/lib/mariadb-java-client.jar:/opt/keycloak/providers/mariadb.jar:ro
+      - ./keycloak/realms:/opt/keycloak/data/import
+        #  /tailoringexpert.json:/tmp/realm-tailoringexpert.json
+      - ./keycloak/themes:/opt/keycloak/themes
+    ports:
+      - 8200:8080
+    networks:
+      - db
+      - idm
+      - proxy
+
+  app:
+    image: ${JAVA_IMAGE}
+    hostname: tailoringexpert-app
+    container_name: app
+    restart: always
+    user: ${PUID}:${PGID}
+    depends_on:
+      directories:
+        condition: service_completed_successfully
+      liquibase:
+        condition: service_completed_successfully
+      keycloak:
+        condition: service_healthy
+    secrets:
+      - app_secrets
+    env_file:
+      - .env
+    environment:
+      SECRETS_FILE: /run/secrets/app_secrets
+      spring_profiles_active: ${spring_profiles_active}
+
+      # db
+      DATASOURCE_DEFAULT_URL: ${DATASOURCE_DEFAULT_URL}
+      DATASOURCE_DEFAULT_USERNAME: ${DATASOURCE_DEFAULT_USERNAME}
+      DATASOURCE_DEFAULT_PASSWORD: ${DATASOURCE_DEFAULT_PASSWORD}
+
+      # security
+      AUTH_PERMIT_ALL: ${APP_AUTH_PERMIT_ALL}
+    entrypoint: ["/app/app_with_secrets.sh"]
+    healthcheck:
+      test: "curl  -w '%{http_code}' --url http://localhost:8080/api/actuator/info | grep 200 || exit 1"
+      interval: 60s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    ports:
+      - 8090:8080
+    volumes:
+      - ./app:/app
+      - ${DATA_HOME}/app/attachment:/app/attachment
+      - ${DATA_HOME}/app/matrix:/app/matrix
+      - ${LOG_HOME}/app:/app/log
+    networks:
+      - db
+      - idm
+      - app
+      - admin
+
+  catalog:
+    image: ${CURL_IMAGE}
+    build: ./catalog
+    container_name: catalog
+    depends_on:
+      keycloak:
+        condition: service_healthy
+      app:
+        condition: service_healthy
+    user: ${PUID}:${PGID}
+    environment:
+      APP_URL: http://tailoringexpert-app:8080/api
+      IDM_URL: http://tailoringexpert-idm:8080/auth
+      IDM_REALM: ${KEYCLOAK_REALM}
+      IDM_CLIENTID: ${KEYCLOAK_CLIENT}
+    env_file:
+      - .env
+    volumes:
+      - ./catalog:/app/
+      - ./catalog/data:/data
+    command: /app/import.sh
+    networks:
+      - idm
+      - app
+
+  idm:
+    image: ${ALPINE_IMAGE}
+    container_name: sed
+    user: ${PUID}:${PGID}
+    environment:
+      AUTH_URL: ${AUTH_URL}
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM}
+      KEYCLOAK_CLIENT: ${KEYCLOAK_CLIENT}
+    volumes:
+      - ./web/www:/app
+    command:
+      - /bin/sh
+      - -c
+      - |
+        printenv
+        sed 's|// CONFIGURATIONS_PLACEHOLDER|window.configs = { \"IDM_URL\": "${AUTH_URL}", \"IDM_REALM\": "${KEYCLOAK_REALM}\", \"IDM_CLIENT\": \"${KEYCLOAK_CLIENT}\"}|' /app/index.html >  /app/index.configured.html
+
+  web:
+    image: ${APACHE_IMAGE}
+    hostname: tailoringexpert-web
+    container_name: web
+    restart: always
+    user: ${PUID}
+    depends_on:
+      directories:
+        condition: service_completed_successfully
+      idm:
+        condition: service_completed_successfully
+    volumes:
+      - ./web/conf/httpd.conf:/usr/local/apache2/conf/httpd.conf:ro
+      - ./web/conf/sites:/usr/local/apache2/conf/sites
+      - ./web/www:/usr/local/apache2/htdocs
+      - ./web/www/index.configured.html:/usr/local/apache2/htdocs/index.html
+      - ./web/custom:/custom
+      - ${LOG_HOME}/httpd:/usr/local/apache2/logs
+    networks:
+      - idm
+      - app
+      - proxy
+    labels:
+      traefik.enable: ${TRAEFIK_ENABLE}
+      traefik.docker.network: ${TRAEFIK_NETWORK}
+      traefik.http.services.tailoringexpert-web.loadbalancer.server.port: 8080
+      traefik.http.routers.tailoringexpert-web.rule: Host(`${DOMAIN}`)
+      traefik.http.routers.tailoringexpert-web.entrypoints: https
+      traefik.http.routers.tailoringexpert-web.tls: ${TLS}
+      traefik.http.routers.tailoringexpert-web.tls.certresolver: ${CERTRESOLVER}
+
+
+secrets:
+  mariadb_secret:
+    file: ${SECRETS_HOME}/tailoringexpert/mariadb.txt
+  db_secrets:
+    file: ${SECRETS_HOME}/tailoringexpert/db.txt
+  keycloak_secrets:
+    file: ${SECRETS_HOME}/tailoringexpert/keycloak.txt
+  app_secrets:
+    file: ${SECRETS_HOME}/tailoringexpert/app.txt
