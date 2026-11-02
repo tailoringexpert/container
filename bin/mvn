@@ -1,0 +1,4 @@
+#!/bin/sh
+set -e
+
+docker run -it -v ~/.m2:/var/maven/.m2 -v "$(pwd)":/opt/container -w /opt/container --rm -u $(id -u):$(id -g) -e MAVEN_CONFIG=/var/maven/.m2 ghcr.io/tailoringexpert/maven:3.9-eclipse-25  mvn -Duser.home=/var/maven $*

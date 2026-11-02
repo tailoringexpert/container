@@ -1,0 +1,285 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>eu.tailoringexpert</groupId>
+    <artifactId>tailoringexpert-demo-container-deployment</artifactId>
+    <packaging>pom</packaging>
+    <name>${project.groupId}:${project.artifactId}</name>
+    <version>1.0.0-SNAPSHOT</version>
+
+    <inceptionYear>2026</inceptionYear>
+
+    <organization>
+        <name>Michael Bädorf and others</name>
+        <url>https://www.tailoringexpert.eu</url>
+    </organization>
+
+
+    <developers>
+        <developer>
+            <name>Michael Baedorf</name>
+            <email>tailoringexpert@michael-baedorf.de</email>
+        </developer>
+    </developers>
+
+    <licenses>
+        <license>
+            <name>GNU General Public License v3.0</name>
+            <url>https://www.gnu.org/licenses/gpl-3.0</url>
+        </license>
+    </licenses>
+
+    <properties>
+        <mariadb.version>3.5.8</mariadb.version>
+        <platform.version>${PLATFORM}</platform.version>
+        <web.version>${WEB}</web.version>
+        <security.version>${SECURITY}</security.version>
+
+        <demo.version>${DEMO}</demo.version>
+        <catalog.version>${CATALOG}</catalog.version>
+        <db.version>${DB}</db.version>
+        <www.version>${WWW}</www.version>
+
+        <outputDirectory>${basedir}</outputDirectory>
+        <properties-maven-plugin.version>1.3.1</properties-maven-plugin.version>
+        <maven-dependency-plugin.version>3.11.0</maven-dependency-plugin.version>
+    </properties>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>properties-maven-plugin</artifactId>
+                <version>${properties-maven-plugin.version}</version>
+                <executions>
+                    <execution>
+                        <phase>initialize</phase>
+                        <goals>
+                            <goal>read-project-properties</goal>
+                        </goals>
+                        <configuration>
+                            <files>
+                                <file>${project.basedir}/versions.properties</file>
+                            </files>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <version>${maven-dependency-plugin.version}</version>
+                <executions>
+                    <execution>
+                        <id>copy-common</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>copy</goal>
+                        </goals>
+                        <configuration>
+                            <useBaseVersion>true</useBaseVersion>
+                            <artifactItems>
+                                <!--app -->
+                                <artifactItem>
+                                    <groupId>eu.tailoringexpert</groupId>
+                                    <artifactId>tailoringexpert-bootapp</artifactId>
+                                    <version>${platform.version}</version>
+                                    <type>jar</type>
+                                    <classifier>platform</classifier>
+                                    <overWrite>true</overWrite>
+                                    <destFileName>tailoringexpert-platform.jar</destFileName>
+                                    <outputDirectory>${outputDirectory}/app</outputDirectory>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>eu.tailoringexpert</groupId>
+                                    <artifactId>tailoringexpert-security-keycloak</artifactId>
+                                    <version>${security.version}</version>
+                                    <classifier>lib</classifier>
+                                    <type>jar</type>
+                                    <overWrite>true</overWrite>
+                                    <outputDirectory>${outputDirectory}/app/lib</outputDirectory>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>org.mariadb.jdbc</groupId>
+                                    <artifactId>mariadb-java-client</artifactId>
+                                    <version>${mariadb.version}</version>
+                                    <type>jar</type>
+                                    <overWrite>true</overWrite>
+                                    <destFileName>mariadb-java-client.jar</destFileName>
+                                    <outputDirectory>${outputDirectory}/app/lib</outputDirectory>
+                                </artifactItem>
+
+                                <!-- liquibase-->
+                                <artifactItem>
+                                    <groupId>org.mariadb.jdbc</groupId>
+                                    <artifactId>mariadb-java-client</artifactId>
+                                    <version>${mariadb.version}</version>
+                                    <type>jar</type>
+                                    <overWrite>true</overWrite>
+                                    <destFileName>mariadb-java-client.jar</destFileName>
+                                    <outputDirectory>${outputDirectory}/liquibase/lib</outputDirectory>
+                                </artifactItem>
+
+                                <!--keycloak-->
+                                <artifactItem>
+                                    <groupId>org.mariadb.jdbc</groupId>
+                                    <artifactId>mariadb-java-client</artifactId>
+                                    <version>${mariadb.version}</version>
+                                    <type>jar</type>
+                                    <destFileName>mariadb-java-client.jar</destFileName>
+                                    <outputDirectory>${outputDirectory}/keycloak/app/lib</outputDirectory>
+                                </artifactItem>
+                            </artifactItems>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>unpack-common</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>unpack</goal>
+                        </goals>
+                        <configuration>
+                            <artifactItems>
+                                <!-- liquibase-->
+                                <artifactItem>
+                                    <groupId>eu.tailoringexpert</groupId>
+                                    <artifactId>tailoringexpert-db</artifactId>
+                                    <version>${platform.version}</version>
+                                    <type>zip</type>
+                                    <classifier>liquibase</classifier>
+                                    <outputDirectory>${outputDirectory}/liquibase/changelog</outputDirectory>
+                                </artifactItem>
+                                <!-- web -->
+                                <artifactItem>
+                                    <groupId>eu.tailoringexpert</groupId>
+                                    <artifactId>tailoringexpert-web</artifactId>
+                                    <version>${web.version}</version>
+                                    <classifier>distribution</classifier>
+                                    <type>zip</type>
+                                    <overWrite>true</overWrite>
+                                    <outputDirectory>${outputDirectory}/web/www</outputDirectory>
+                                </artifactItem>
+                            </artifactItems>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+    <profiles>
+        <profile>
+            <id>demo</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-dependency-plugin</artifactId>
+                        <version>${maven-dependency-plugin.version}</version>
+                        <executions>
+                            <execution>
+                                <id>copy-demo</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>copy</goal>
+                                </goals>
+                                <configuration>
+                                    <useBaseVersion>true</useBaseVersion>
+                                    <artifactItems>
+                                        <artifactItem>
+                                            <groupId>eu.tailoringexpert.demo</groupId>
+                                            <artifactId>tailoringexpert-demo-config</artifactId>
+                                            <version>${demo.version}</version>
+                                            <type>jar</type>
+                                            <overWrite>true</overWrite>
+                                            <outputDirectory>${outputDirectory}/app/lib</outputDirectory>
+                                        </artifactItem>
+                                        <artifactItem>
+                                            <groupId>eu.tailoringexpert.demo</groupId>
+                                            <artifactId>tailoringexpert-demo-core</artifactId>
+                                            <version>${demo.version}</version>
+                                            <type>jar</type>
+                                            <overWrite>true</overWrite>
+                                            <outputDirectory>${outputDirectory}/app/lib</outputDirectory>
+                                        </artifactItem>
+                                    </artifactItems>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>unpack-demo</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>unpack</goal>
+                                </goals>
+                                <configuration>
+                                    <artifactItems>
+                                        <!-- app -->
+                                        <artifactItem>
+                                            <groupId>eu.tailoringexpert.demo</groupId>
+                                            <artifactId>tailoringexpert-demo-catalog</artifactId>
+                                            <version>${demo.version}</version>
+                                            <classifier>templates</classifier>
+                                            <type>zip</type>
+                                            <overWrite>true</overWrite>
+                                            <outputDirectory>
+                                                ${outputDirectory}/app/resources/templates/demo</outputDirectory>
+                                        </artifactItem>
+
+                                        <!-- liquibase-->
+                                        <artifactItem>
+                                            <groupId>eu.tailoringexpert.demo</groupId>
+                                            <artifactId>tailoringexpert-demo-db</artifactId>
+                                            <version>${demo.version}</version>
+                                            <type>zip</type>
+                                            <classifier>liquibase</classifier>
+                                            <outputDirectory>${outputDirectory}/liquibase/changelog</outputDirectory>
+                                        </artifactItem>
+
+                                        <!-- catalog -->
+                                        <artifactItem>
+                                            <groupId>eu.tailoringexpert.demo</groupId>
+                                            <artifactId>tailoringexpert-demo-catalog</artifactId>
+                                            <version>${demo.version}</version>
+                                            <classifier>catalog</classifier>
+                                            <type>zip</type>
+                                            <outputDirectory>
+                                                ${outputDirectory}/catalog/data/demo</outputDirectory>
+                                        </artifactItem>
+
+                                        <!-- web -->
+                                        <artifactItem>
+                                            <groupId>eu.tailoringexpert.demo</groupId>
+                                            <artifactId>tailoringexpert-demo-catalog</artifactId>
+                                            <version>${demo.version}</version>
+                                            <classifier>assets</classifier>
+                                            <type>zip</type>
+                                            <outputDirectory>
+                                                ${outputDirectory}/web/custom/demo/assets</outputDirectory>
+                                        </artifactItem>
+                                        <artifactItem>
+                                            <groupId>eu.tailoringexpert.demo</groupId>
+                                            <artifactId>tailoringexpert-demo-www</artifactId>
+                                            <version>${demo.version}</version>
+                                            <type>zip</type>
+                                            <classifier>static</classifier>
+                                            <overWrite>true</overWrite>
+                                            <outputDirectory>
+                                                ${outputDirectory}/web/custom/arsu/static</outputDirectory>
+                                        </artifactItem>
+                                    </artifactItems>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+
+</project>

@@ -1,0 +1,7 @@
+.env
+versions.properties
+**/server.key
+.secrets/*
+!.secrets/*.txt.template
+
+

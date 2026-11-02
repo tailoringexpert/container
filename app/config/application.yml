@@ -1,0 +1,65 @@
+tailoringexpert:
+  version: "${PROJECT_VERSION:0.2.0}"
+  home:
+    template: /app/resources/templates
+    attachment: /app/attachment
+    matrix: /app/matrix
+    tenant: /app/db
+  mix-ins: [ "eu.tailoringexpert.domain.TailoringCatalogChapterResource:eu.tailoringexpert.domain.TailoringCatalogChapterResourcePrimevueMixIn" ]
+management:
+  endpoints:
+    web:
+      exposure:
+        include: restart,health,info,beans
+  endpoint:
+    restart:
+      enabled: true
+    health:
+      show-details: always
+      
+spring:
+  jpa:
+    generate-ddl: false
+    hibernate:
+      ddl-auto: none
+    database-platform: ${DATASOURCE_DEFAULT_DATABASE_PLATFORM:org.hibernate.dialect.MariaDBDialect}
+    database: ${DATASOURCE_DEFAULT_DATABASE:MYSQL}
+    show-sql: false
+  main:
+    allow-bean-definition-overriding: true
+  datasource:
+    driver-class-name: ${DATASOURCE_DEFAULT_DRIVER_CLASS:org.mariadb.jdbc.Driver}
+    password: ${DATASOURCE_DEFAULT_PASSWORD}
+    username: ${DATASOURCE_DEFAULT_USERNAME}
+    url: ${DATASOURCE_DEFAULT_URL}
+  cloud:
+    config:
+      enabled: false
+  http:
+    encoding:
+      force: true
+      charset: UTF-8
+      enabled: true
+  application:
+    name: tailoringexpert-api
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+server:
+  forward-headers-strategy: native
+  tomcat:
+    remote_ip_header: x-forwarded-for
+    protocol_header: x-forwarded-proto
+    uri-encoding: UTF-8
+  use-forward-headers: true
+  port: '8080'
+  display-name: Tailoring
+  http:
+    interface: 0.0.0.0
+  servlet:
+    context-path: /api
+  ssl:
+    enabled: false
+
+
